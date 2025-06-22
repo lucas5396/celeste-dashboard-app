@@ -1,0 +1,27 @@
+
+{
+  "name": "Dashboard Elite - Celeste",
+  "short_name": "Celeste Dashboard",
+  "description": "Panel de control personalizado para bailarina de ballet folklórico argentino",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#fefcf8",
+  "theme_color": "#8b5a3c",
+  "categories": ["health", "fitness", "lifestyle"],
+  "lang": "es",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable any"
+    }
+  ]
+}
