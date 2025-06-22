@@ -1,7 +1,7 @@
-
 [build]
   publish = "out"
-  command = "npm run build"
+  # MODIFICACIÓN: Usar npm ci antes de npx next build para una instalación robusta de dependencias
+  command = "npm ci && npx next build" 
 
 [build.environment]
   NODE_VERSION = "18"
