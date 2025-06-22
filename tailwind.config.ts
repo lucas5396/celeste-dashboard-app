@@ -3,9 +3,11 @@ import type { Config } from 'tailwindcss';
 const config: Config = {
   darkMode: ['class'],
   content: [
-    './pages/**/*.{js,ts,jsx,tsx,mdx}',
+    // Mantenemos esta línea si usas la carpeta `pages` (aunque es menos común con el App Router)
+    './pages/**/*.{js,ts,jsx,tsx,mdx}', 
     './components/**/*.{js,ts,jsx,tsx,mdx}',
-    './app/**/*.{js,ts,jsx,tsx,mdx}',
+    // MODIFICACIÓN CLAVE: Cambiamos 'app' por 'src' para que Tailwind encuentre tus archivos
+    './src/**/*.{js,ts,jsx,tsx,mdx}', 
   ],
   theme: {
     extend: {
