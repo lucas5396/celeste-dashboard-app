@@ -1,4 +1,3 @@
-
 import { type ClassValue, clsx } from "clsx"
 import { twMerge } from "tailwind-merge"
 import { HealthMetric, CelesteProfile } from './types';
@@ -61,7 +60,11 @@ export function generateSampleData(): HealthMetric[] {
 
   for (let i = 0; i < 12; i++) {
     const date = new Date(startDate);
-    date.setWeek(date.getWeek() + i);
+    // MODIFICACIÓN/OPTIMIZACIÓN: Evitar el uso de setWeek/getWeek personalizados
+    // para la generación de datos de muestra, ya que causaban "Invalid time value".
+    // En su lugar, sumamos directamente días para simular incrementos semanales.
+    // date.setWeek(date.getWeek() + i); // Línea original comentada
+    date.setDate(startDate.getDate() + (i * 7)); // Nueva línea para un incremento semanal simple
     
     sampleData.push({
       id: `sample_${i}`,
@@ -257,7 +260,8 @@ export function setupPWAInstall() {
   });
 }
 
-// Add date extension for week calculations
+// Las extensiones de Date.prototype se mantienen igual, pero la forma en que se
+// generan los datos de muestra ya no las usa directamente para evitar errores.
 declare global {
   interface Date {
     getWeek(): number;
