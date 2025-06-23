@@ -40,6 +40,13 @@ export function calculateProgress(current: number, target: number, initial: numb
 
 // Format date for display
 export function formatDate(date: Date): string {
+  // ¡OPTIMIZACIÓN APLICADA!
+  // Se añade una validación para asegurar que el valor sea un objeto Date válido
+  // antes de intentar formatearlo. Esto hace la función más robusta.
+  if (!(date instanceof Date) || isNaN(date.getTime())) {
+    return 'Fecha inválida';
+  }
+
   return new Intl.DateTimeFormat('es-ES', {
     year: 'numeric',
     month: 'long',
@@ -49,6 +56,11 @@ export function formatDate(date: Date): string {
 
 // Format date for input
 export function formatDateForInput(date: Date): string {
+  // Se añade una validación similar por seguridad.
+  if (!(date instanceof Date) || isNaN(date.getTime())) {
+    const today = new Date();
+    return today.toISOString().split('T')[0];
+  }
   return date.toISOString().split('T')[0];
 }
 
@@ -60,11 +72,7 @@ export function generateSampleData(): HealthMetric[] {
 
   for (let i = 0; i < 12; i++) {
     const date = new Date(startDate);
-    // MODIFICACIÓN/OPTIMIZACIÓN: Evitar el uso de setWeek/getWeek personalizados
-    // para la generación de datos de muestra, ya que causaban "Invalid time value".
-    // En su lugar, sumamos directamente días para simular incrementos semanales.
-    // date.setWeek(date.getWeek() + i); // Línea original comentada
-    date.setDate(startDate.getDate() + (i * 7)); // Nueva línea para un incremento semanal simple
+    date.setDate(startDate.getDate() + (i * 7));
     
     sampleData.push({
       id: `sample_${i}`,
@@ -260,8 +268,7 @@ export function setupPWAInstall() {
   });
 }
 
-// Las extensiones de Date.prototype se mantienen igual, pero la forma en que se
-// generan los datos de muestra ya no las usa directamente para evitar errores.
+// Las extensiones de Date.prototype se mantienen igual.
 declare global {
   interface Date {
     getWeek(): number;

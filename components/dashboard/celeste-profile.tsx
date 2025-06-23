@@ -1,4 +1,3 @@
-
 'use client';
 
 import { motion } from 'framer-motion';
@@ -28,10 +27,11 @@ export default function CelesteProfile() {
           <p className="text-lg text-gray-600 dark:text-gray-300">
             {celesteProfile.profession}
           </p>
-          <div className="flex gap-4 mt-2 text-sm text-gray-500 dark:text-gray-400">
+          {/* CORRECCIÓN: Se arreglaron los caracteres y se usaron emojis estándar */}
+          <div className="flex flex-wrap gap-4 mt-2 text-sm text-gray-500 dark:text-gray-400">
             <span>🎂 {celesteProfile.age} años</span>
             <span>📏 {celesteProfile.height} cm</span>
-            <span>🏆 {celesteProfile.experience} años experiencia</span>
+            <span>🏆 {celesteProfile.experience} años de experiencia</span>
           </div>
         </div>
       </div>
