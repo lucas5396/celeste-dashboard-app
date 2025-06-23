@@ -3,9 +3,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { 
-    Calendar as CalendarIcon, ChevronDown, Droplet, Flame, Zap, Dumbbell, Target, Heart, Brain, 
-    BookOpen, Apple, Fish, Carrot, Coffee, CheckCircle, Clock, Moon, PlusCircle, ArrowRight, 
-    TrendingUp, Info, LayoutDashboard, BarChart3, Utensils, HeartPulse, GraduationCap 
+    LayoutDashboard, BarChart3, Utensils, HeartPulse, GraduationCap, 
+    Target, Heart, Moon, Dumbbell, PlusCircle
 } from 'lucide-react';
 
 // --- CORE LOGIC AND DATA IMPORTS ---
@@ -13,7 +12,6 @@ import { dataSyncManager } from '@/lib/data-sync';
 import { HealthMetric } from '@/lib/types';
 import { calculateBMI, celesteProfile } from '@/lib/utils';
 import { useToast } from "@/hooks/use-toast";
-
 
 // --- REAL SHADCN UI COMPONENT IMPORTS ---
 import { Card, CardHeader, CardContent, CardTitle, CardDescription } from '@/components/ui/card';
@@ -26,8 +24,30 @@ import { Progress } from '@/components/ui/progress';
 import { Skeleton } from '@/components/ui/skeleton';
 
 
+// --- TYPE DEFINITIONS FOR COMPONENTS AND VIEWS ---
+type ViewName = 'overview' | 'tracking' | 'nutrition' | 'training' | 'education';
+
+interface SidebarProps {
+    activeView: ViewName;
+    setActiveView: React.Dispatch<React.SetStateAction<ViewName>>;
+}
+
+interface OverviewProps {
+    progressData: HealthMetric[];
+    setView: React.Dispatch<React.SetStateAction<ViewName>>;
+}
+
+// Define a more specific type for the data being added
+type NewMetricData = Omit<HealthMetric, 'id' | 'synced' | 'lastModified' | 'imc'>;
+
+interface ProgressTrackingProps {
+    progressData: HealthMetric[];
+    onAddData: (data: NewMetricData) => Promise<void>;
+}
+
+
 // --- SIDEBAR COMPONENT ---
-const Sidebar = ({ activeView, setActiveView }) => {
+const Sidebar: React.FC<SidebarProps> = ({ activeView, setActiveView }) => {
     const navItems = [
         { id: 'overview', label: 'Resumen General', icon: LayoutDashboard },
         { id: 'tracking', label: 'Seguimiento', icon: BarChart3 },
@@ -46,7 +66,7 @@ const Sidebar = ({ activeView, setActiveView }) => {
                     {navItems.map(item => (
                         <li key={item.id}>
                             <button
-                                onClick={() => setActiveView(item.id)}
+                                onClick={() => setActiveView(item.id as ViewName)}
                                 className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${
                                     activeView === item.id 
                                         ? 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300' 
@@ -66,7 +86,7 @@ const Sidebar = ({ activeView, setActiveView }) => {
 
 
 // --- OVERVIEW COMPONENT ---
-const Overview = ({ progressData, setView }) => {
+const Overview: React.FC<OverviewProps> = ({ progressData, setView }) => {
     const latestData = useMemo(() => progressData.length > 0 ? progressData[0] : null, [progressData]);
 
     if (!latestData) {
@@ -158,27 +178,26 @@ const Overview = ({ progressData, setView }) => {
 
 
 // --- PROGRESS TRACKING COMPONENT ---
-const ProgressTracking = ({ progressData, onAddData }) => {
+const ProgressTracking: React.FC<ProgressTrackingProps> = ({ progressData, onAddData }) => {
     const { toast } = useToast();
     const [isDialogOpen, setIsDialogOpen] = useState(false);
 
-    const handleSubmit = (event) => {
+    const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault();
-        const formData = new FormData(event.target);
-        const newData = {
-            date: new Date(formData.get('date')),
-            weight: parseFloat(formData.get('weight')),
-            fatMass: parseFloat(formData.get('fatMass')),
-            leanMass: parseFloat(formData.get('leanMass')),
-            musclePercentage: parseFloat(formData.get('musclePercentage')),
-            bonePercentage: parseFloat(formData.get('bonePercentage')),
-            waterPercentage: parseFloat(formData.get('waterPercentage')),
-            sleepHours: parseFloat(formData.get('sleepHours')),
-            trainingHours: parseFloat(formData.get('trainingHours')),
-            notes: formData.get('notes'),
+        const formData = new FormData(event.currentTarget);
+        const newData: NewMetricData = {
+            date: new Date(formData.get('date') as string),
+            weight: parseFloat(formData.get('weight') as string),
+            fatMass: parseFloat(formData.get('fatMass') as string),
+            leanMass: parseFloat(formData.get('leanMass') as string),
+            musclePercentage: parseFloat(formData.get('musclePercentage') as string),
+            bonePercentage: parseFloat(formData.get('bonePercentage') as string),
+            waterPercentage: parseFloat(formData.get('waterPercentage') as string),
+            sleepHours: parseFloat(formData.get('sleepHours') as string),
+            trainingHours: parseFloat(formData.get('trainingHours') as string),
+            notes: formData.get('notes') as string,
         };
 
-        // Basic validation
         if (isNaN(newData.weight) || newData.weight <= 0) {
              toast({ title: "Error de Validación", description: "Por favor, introduce un peso válido.", variant: "destructive" });
              return;
@@ -210,7 +229,6 @@ const ProgressTracking = ({ progressData, onAddData }) => {
                             <DialogDescription>Completa los campos con tus métricas más recientes.</DialogDescription>
                         </DialogHeader>
                         <form onSubmit={handleSubmit} className="grid gap-4 py-4">
-                            {/* Form fields */}
                              <div className="grid grid-cols-4 items-center gap-4">
                                 <Label htmlFor="date" className="text-right">Fecha</Label>
                                 <Input id="date" name="date" type="date" defaultValue={new Date().toISOString().split('T')[0]} className="col-span-3" />
@@ -219,7 +237,6 @@ const ProgressTracking = ({ progressData, onAddData }) => {
                                 <Label htmlFor="weight" className="text-right">Peso (kg)</Label>
                                 <Input id="weight" name="weight" type="number" step="0.1" className="col-span-3" required />
                             </div>
-                             {/* Add other fields similarly */}
                             <div className="grid grid-cols-4 items-center gap-4">
                                 <Label htmlFor="fatMass" className="text-right">Masa Grasa (kg)</Label>
                                 <Input id="fatMass" name="fatMass" type="number" step="0.1" className="col-span-3" />
@@ -366,42 +383,31 @@ const Education = () => (
 
 // --- MAIN DASHBOARD PAGE COMPONENT ---
 export default function DashboardPage() {
-    const [activeView, setActiveView] = useState('overview');
+    const [activeView, setActiveView] = useState<ViewName>('overview');
     const [healthData, setHealthData] = useState<HealthMetric[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
-    // Effect for loading and subscribing to data
     useEffect(() => {
         const loadAndSubscribe = async () => {
             setIsLoading(true);
             try {
-                // Initial load from local storage for faster UI
                 const localData = dataSyncManager.getLocalData();
                 setHealthData(localData.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
-                
-                // Then, sync with the cloud
                 await dataSyncManager.syncFromCloud();
             } catch (error) {
                 console.error("Failed to load initial data:", error);
             } finally {
                 setIsLoading(false);
             }
-
-            // Subscribe to real-time updates from the cloud
             const unsubscribe = dataSyncManager.subscribeToCloudUpdates((data) => {
                 setHealthData(data.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
             });
-
-            // Cleanup subscription on component unmount
             return () => unsubscribe();
         };
-
         loadAndSubscribe();
     }, []);
 
-
-    // Handler for adding new data, using the dataSyncManager
-    const handleAddData = async (newData: Omit<HealthMetric, 'id' | 'synced' | 'lastModified' | 'imc'>) => {
+    const handleAddData = async (newData: NewMetricData) => {
         const imc = calculateBMI(newData.weight, celesteProfile.height);
         const metricToAdd: HealthMetric = {
             id: Date.now().toString(),
@@ -412,13 +418,11 @@ export default function DashboardPage() {
         };
         try {
             await dataSyncManager.saveLocal(metricToAdd);
-            // The real-time listener will update the state, no need for setHealthData here
         } catch (error) {
             console.error("Failed to save new data:", error);
         }
     };
     
-    // Renders the main content based on the active view
     const renderContent = () => {
         if (isLoading && healthData.length === 0) {
             return (
