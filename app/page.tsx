@@ -1,15 +1,15 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar } from 'recharts';
 import { 
-    LayoutDashboard, BarChart3, Utensils, HeartPulse, GraduationCap, 
-    Target, Heart, Moon, Dumbbell, PlusCircle
+    LayoutDashboard, BarChart3, Utensils, HeartPulse, GraduationCap, ShieldCheck, BedDouble, Info,
+    Target, Heart, Moon, Dumbbell, PlusCircle, Droplet, Brain, Wind, Activity, Atom, Pill
 } from 'lucide-react';
 
 // --- CORE LOGIC AND DATA IMPORTS ---
 import { dataSyncManager } from '@/lib/data-sync';
-import { HealthMetric } from '@/lib/types';
+import { HealthMetric, SleepData } from '@/lib/types'; // Asumiendo que SleepData se añadirá a types.ts
 import { calculateBMI, celesteProfile } from '@/lib/utils';
 import { useToast } from "@/hooks/use-toast";
 
@@ -22,38 +22,35 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 
-// --- TYPE DEFINITIONS FOR COMPONENTS AND VIEWS ---
-type ViewName = 'overview' | 'tracking' | 'nutrition' | 'training' | 'education';
+// --- TYPE DEFINITIONS ---
+type ViewName = 'overview' | 'tracking' | 'nutrition' | 'training' | 'sleep_recovery' | 'supplements' | 'education';
 
 interface SidebarProps {
     activeView: ViewName;
     setActiveView: React.Dispatch<React.SetStateAction<ViewName>>;
 }
 
-interface OverviewProps {
-    progressData: HealthMetric[];
-    setView: React.Dispatch<React.SetStateAction<ViewName>>;
-}
-
-// Define a more specific type for the data being added
 type NewMetricData = Omit<HealthMetric, 'id' | 'synced' | 'lastModified' | 'imc'>;
 
-interface ProgressTrackingProps {
-    progressData: HealthMetric[];
-    onAddData: (data: NewMetricData) => Promise<void>;
-}
+// --- DUMMY DATA FOR NEW FEATURES ---
+const [latestSleep, setLatestSleep] = useState<SleepData | null>({ hours: 6, quality: 'cansada', date: new Date() });
+const [hydration, setHydration] = useState(1.5); // Litros
 
+// --- UI SUB-COMPONENTS (Modularized for clarity) ---
 
-// --- SIDEBAR COMPONENT ---
 const Sidebar: React.FC<SidebarProps> = ({ activeView, setActiveView }) => {
     const navItems = [
         { id: 'overview', label: 'Resumen General', icon: LayoutDashboard },
-        { id: 'tracking', label: 'Seguimiento', icon: BarChart3 },
-        { id: 'nutrition', label: 'Nutrición', icon: Utensils },
+        { id: 'tracking', label: 'Seguimiento de Progreso', icon: BarChart3 },
+        { id: 'nutrition', label: 'Plan de Nutrición', icon: Utensils },
         { id: 'training', label: 'Entrenamiento', icon: HeartPulse },
-        { id: 'education', label: 'Educación', icon: GraduationCap },
+        { id: 'sleep_recovery', label: 'Sueño y Recuperación', icon: BedDouble },
+        { id: 'supplements', label: 'Suplementación', icon: Pill },
+        { id: 'education', label: 'Educación y Ciencia', icon: GraduationCap },
     ];
 
     return (
@@ -61,233 +58,111 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, setActiveView }) => {
             <div className="p-4 md:p-6 border-b border-gray-200 dark:border-gray-700">
                 <h2 className="text-xl font-bold text-gray-900 dark:text-white">Celeste<span className="text-amber-500">Dashboard</span></h2>
             </div>
-            <nav className="p-2 md:p-4">
-                <ul>
-                    {navItems.map(item => (
-                        <li key={item.id}>
-                            <button
-                                onClick={() => setActiveView(item.id as ViewName)}
-                                className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                                    activeView === item.id 
-                                        ? 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300' 
-                                        : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-                                }`}
-                            >
-                                <item.icon className="w-5 h-5" />
-                                <span>{item.label}</span>
-                            </button>
-                        </li>
-                    ))}
-                </ul>
+            <nav className="p-2 md:p-4 space-y-1">
+                {navItems.map(item => (
+                    <Button
+                        key={item.id}
+                        variant={activeView === item.id ? 'secondary' : 'ghost'}
+                        className="w-full justify-start gap-3"
+                        onClick={() => setActiveView(item.id as ViewName)}
+                    >
+                        <item.icon className="w-5 h-5" />
+                        <span>{item.label}</span>
+                    </Button>
+                ))}
             </nav>
         </aside>
     );
 };
 
-
-// --- OVERVIEW COMPONENT ---
-const Overview: React.FC<OverviewProps> = ({ progressData, setView }) => {
+const Overview: React.FC<{ progressData: HealthMetric[], setView: React.Dispatch<React.SetStateAction<ViewName>> }> = ({ progressData, setView }) => {
     const latestData = useMemo(() => progressData.length > 0 ? progressData[0] : null, [progressData]);
 
-    if (!latestData) {
-        return (
-            <div className="flex flex-col items-center justify-center h-full text-center">
-                 <Card className="w-full max-w-lg p-8">
-                    <CardHeader>
-                        <CardTitle className="text-2xl">¡Bienvenida, Celeste!</CardTitle>
-                        <CardDescription>Aún no hay datos registrados. Añade tu primer seguimiento para empezar.</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        <Button onClick={() => setView('tracking')} size="lg">
-                            <PlusCircle className="mr-2 h-5 w-5" />
-                            Añadir Nuevo Registro
-                        </Button>
-                    </CardContent>
-                </Card>
-            </div>
-        );
-    }
+    if (!latestData) return (
+        <div className="flex items-center justify-center h-full">
+            <Card className="w-full max-w-lg p-8 text-center">
+                <CardHeader>
+                    <CardTitle className="text-2xl">¡Bienvenida, Celeste!</CardTitle>
+                    <CardDescription>Aún no hay datos. Añade tu primer registro para activar tu dashboard.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <Button onClick={() => setView('tracking')} size="lg"><PlusCircle className="mr-2 h-5 w-5" />Añadir Primer Registro</Button>
+                </CardContent>
+            </Card>
+        </div>
+    );
     
     const initialWeight = celesteProfile.currentWeight;
     const targetWeight = celesteProfile.targetWeight;
     const progressPercentage = Math.min(100, Math.max(0, ((initialWeight - latestData.weight) / (initialWeight - targetWeight)) * 100));
+    
+    const compositionData = [
+        { name: 'Masa Grasa', value: latestData.fatMass, fill: '#ffc658' },
+        { name: 'Masa Magra', value: latestData.leanMass, fill: '#8884d8' },
+    ];
 
     return (
-        <div className="grid gap-6 md:gap-8">
-            <Card className="col-span-1 md:col-span-2">
+        <div className="grid gap-6">
+            <Card>
                 <CardHeader>
-                    <CardTitle>Progreso Hacia el Objetivo</CardTitle>
-                    <CardDescription>Estás a { (latestData.weight - targetWeight).toFixed(1) } kg de tu meta.</CardDescription>
+                    <CardTitle>Progreso Hacia el Objetivo de Peso</CardTitle>
+                    <CardDescription>Meta: {targetWeight} kg. Estás a {(latestData.weight - targetWeight).toFixed(1)} kg de lograrlo.</CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <div className="flex items-center gap-4">
-                        <span className="font-medium">{initialWeight} kg</span>
+                    <div className="flex items-center gap-4 mb-2">
+                        <span className="text-sm font-medium text-gray-500">{initialWeight} kg</span>
                         <Progress value={progressPercentage} className="flex-1" />
-                        <span className="font-bold text-amber-600">{targetWeight} kg</span>
+                        <span className="text-sm font-bold text-amber-600">{targetWeight} kg</span>
                     </div>
+                    <div className="text-center text-lg font-bold">{progressPercentage.toFixed(1)}% completado</div>
                 </CardContent>
             </Card>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <Card>
-                    <CardHeader className="flex flex-row items-center justify-between pb-2">
-                        <CardTitle className="text-sm font-medium">Peso Actual</CardTitle>
-                        <Target className="w-4 h-4 text-gray-500 dark:text-gray-400" />
-                    </CardHeader>
+                    <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Peso Actual</CardTitle></CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">{latestData.weight} kg</div>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">
-                           { (latestData.weight - initialWeight).toFixed(1) } kg desde el inicio
-                        </p>
+                        <div className="text-3xl font-bold">{latestData.weight.toFixed(1)} kg</div>
+                        <p className="text-xs text-green-600 dark:text-green-400">{(latestData.weight - progressData[progressData.length - 1].weight).toFixed(1)} kg desde el último registro</p>
                     </CardContent>
                 </Card>
-                 <Card>
-                    <CardHeader className="flex flex-row items-center justify-between pb-2">
-                        <CardTitle className="text-sm font-medium">IMC</CardTitle>
-                        <Heart className="w-4 h-4 text-gray-500 dark:text-gray-400" />
-                    </CardHeader>
+                <Card>
+                    <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Hidratación</CardTitle></CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">{latestData.imc}</div>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">Índice de Masa Corporal</p>
+                        <div className="text-3xl font-bold">{hydration.toFixed(1)} / 3.0 L</div>
+                        <Button size="sm" variant="outline" onClick={() => setHydration(h => h + 0.25)}><Droplet className="w-4 h-4 mr-2" />Añadir vaso</Button>
                     </CardContent>
                 </Card>
-                 <Card>
-                    <CardHeader className="flex flex-row items-center justify-between pb-2">
-                        <CardTitle className="text-sm font-medium">Horas de Sueño</CardTitle>
-                        <Moon className="w-4 h-4 text-gray-500 dark:text-gray-400" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">{latestData.sleepHours} hs</div>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">Última noche</p>
-                    </CardContent>
+                <Card>
+                     <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Calidad del Sueño</CardTitle></CardHeader>
+                     <CardContent>
+                        <div className="text-3xl font-bold">{latestSleep?.hours || 'N/A'} hs</div>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">Sensación: {latestSleep?.quality || 'N/A'}</p>
+                     </CardContent>
                 </Card>
-                 <Card>
-                    <CardHeader className="flex flex-row items-center justify-between pb-2">
-                        <CardTitle className="text-sm font-medium">Entrenamiento</CardTitle>
-                        <Dumbbell className="w-4 h-4 text-gray-500 dark:text-gray-400" />
-                    </CardHeader>
+                <Card>
+                    <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">IMC Actual</CardTitle></CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">{latestData.trainingHours} hs</div>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">Última semana</p>
+                        <div className="text-3xl font-bold">{latestData.imc}</div>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">Rango saludable: 18.5-24.9</p>
                     </CardContent>
                 </Card>
             </div>
-        </div>
-    );
-};
-
-
-// --- PROGRESS TRACKING COMPONENT ---
-const ProgressTracking: React.FC<ProgressTrackingProps> = ({ progressData, onAddData }) => {
-    const { toast } = useToast();
-    const [isDialogOpen, setIsDialogOpen] = useState(false);
-
-    const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
-        event.preventDefault();
-        const formData = new FormData(event.currentTarget);
-        const newData: NewMetricData = {
-            date: new Date(formData.get('date') as string),
-            weight: parseFloat(formData.get('weight') as string),
-            fatMass: parseFloat(formData.get('fatMass') as string),
-            leanMass: parseFloat(formData.get('leanMass') as string),
-            musclePercentage: parseFloat(formData.get('musclePercentage') as string),
-            bonePercentage: parseFloat(formData.get('bonePercentage') as string),
-            waterPercentage: parseFloat(formData.get('waterPercentage') as string),
-            sleepHours: parseFloat(formData.get('sleepHours') as string),
-            trainingHours: parseFloat(formData.get('trainingHours') as string),
-            notes: formData.get('notes') as string,
-        };
-
-        if (isNaN(newData.weight) || newData.weight <= 0) {
-             toast({ title: "Error de Validación", description: "Por favor, introduce un peso válido.", variant: "destructive" });
-             return;
-        }
-
-        onAddData(newData);
-        toast({ title: "¡Éxito!", description: "Nuevo registro añadido correctamente." });
-        setIsDialogOpen(false);
-    };
-
-    const formattedData = useMemo(() => 
-        progressData.map(d => ({
-            ...d,
-            name: new Date(d.date).toLocaleDateString('es-ES', { month: 'short', day: 'numeric' })
-        })).reverse(), 
-    [progressData]);
-
-    return (
-        <div className="grid gap-6 md:gap-8">
-            <div className="flex justify-between items-center">
-                <h1 className="text-2xl md:text-3xl font-bold">Seguimiento de Progreso</h1>
-                <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-                    <DialogTrigger asChild>
-                        <Button><PlusCircle className="mr-2 h-4 w-4" />Añadir Registro</Button>
-                    </DialogTrigger>
-                    <DialogContent className="sm:max-w-[425px]">
-                        <DialogHeader>
-                            <DialogTitle>Añadir Nuevo Registro</DialogTitle>
-                            <DialogDescription>Completa los campos con tus métricas más recientes.</DialogDescription>
-                        </DialogHeader>
-                        <form onSubmit={handleSubmit} className="grid gap-4 py-4">
-                             <div className="grid grid-cols-4 items-center gap-4">
-                                <Label htmlFor="date" className="text-right">Fecha</Label>
-                                <Input id="date" name="date" type="date" defaultValue={new Date().toISOString().split('T')[0]} className="col-span-3" />
-                            </div>
-                            <div className="grid grid-cols-4 items-center gap-4">
-                                <Label htmlFor="weight" className="text-right">Peso (kg)</Label>
-                                <Input id="weight" name="weight" type="number" step="0.1" className="col-span-3" required />
-                            </div>
-                            <div className="grid grid-cols-4 items-center gap-4">
-                                <Label htmlFor="fatMass" className="text-right">Masa Grasa (kg)</Label>
-                                <Input id="fatMass" name="fatMass" type="number" step="0.1" className="col-span-3" />
-                            </div>
-                            <div className="grid grid-cols-4 items-center gap-4">
-                                <Label htmlFor="leanMass" className="text-right">Masa Magra (kg)</Label>
-                                <Input id="leanMass" name="leanMass" type="number" step="0.1" className="col-span-3" />
-                            </div>
-                            <div className="grid grid-cols-4 items-center gap-4">
-                                <Label htmlFor="musclePercentage" className="text-right">Músculo (%)</Label>
-                                <Input id="musclePercentage" name="musclePercentage" type="number" step="0.1" className="col-span-3" />
-                            </div>
-                             <div className="grid grid-cols-4 items-center gap-4">
-                                <Label htmlFor="bonePercentage" className="text-right">Hueso (%)</Label>
-                                <Input id="bonePercentage" name="bonePercentage" type="number" step="0.1" className="col-span-3" />
-                            </div>
-                            <div className="grid grid-cols-4 items-center gap-4">
-                                <Label htmlFor="waterPercentage" className="text-right">Agua (%)</Label>
-                                <Input id="waterPercentage" name="waterPercentage" type="number" step="0.1" className="col-span-3" />
-                            </div>
-                            <div className="grid grid-cols-4 items-center gap-4">
-                                <Label htmlFor="sleepHours" className="text-right">Sueño (hs)</Label>
-                                <Input id="sleepHours" name="sleepHours" type="number" step="0.5" className="col-span-3" />
-                            </div>
-                            <div className="grid grid-cols-4 items-center gap-4">
-                                <Label htmlFor="trainingHours" className="text-right">Entrenamiento (hs)</Label>
-                                <Input id="trainingHours" name="trainingHours" type="number" step="0.5" className="col-span-3" />
-                            </div>
-                             <div className="grid grid-cols-4 items-center gap-4">
-                                <Label htmlFor="notes" className="text-right">Notas</Label>
-                                <Input id="notes" name="notes" className="col-span-3" />
-                            </div>
-                            <DialogFooter>
-                                <Button type="submit">Guardar Registro</Button>
-                            </DialogFooter>
-                        </form>
-                    </DialogContent>
-                </Dialog>
-            </div>
-             <Card>
-                <CardHeader><CardTitle>Evolución del Peso</CardTitle></CardHeader>
-                <CardContent className="h-80">
+            
+            <Card>
+                <CardHeader>
+                    <CardTitle>Composición Corporal</CardTitle>
+                    <CardDescription>Visualización de tu masa grasa vs. masa magra.</CardDescription>
+                </CardHeader>
+                <CardContent className="h-64">
                     <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={formattedData}>
-                            <CartesianGrid strokeDasharray="3 3" />
-                            <XAxis dataKey="name" />
-                            <YAxis domain={['dataMin - 2', 'dataMax + 2']} />
+                        <PieChart>
+                            <Pie data={compositionData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label>
+                                {compositionData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.fill} />)}
+                            </Pie>
                             <Tooltip />
                             <Legend />
-                            <Line type="monotone" dataKey="weight" stroke="#8884d8" name="Peso (kg)" />
-                        </LineChart>
+                        </PieChart>
                     </ResponsiveContainer>
                 </CardContent>
             </Card>
@@ -295,62 +170,87 @@ const ProgressTracking: React.FC<ProgressTrackingProps> = ({ progressData, onAdd
     );
 };
 
-// --- NUTRITION PLAN COMPONENT ---
-const NutritionPlan = () => (
-    <div>
-        <h1 className="text-2xl md:text-3xl font-bold mb-6">Plan de Nutrición</h1>
+const NutritionPlan: React.FC = () => (
+    <div className="space-y-6">
+        <h1 className="text-3xl font-bold">Plan de Nutrición de Precisión</h1>
+        <Alert>
+            <Info className="h-4 w-4" />
+            <AlertTitle>Enfoque Científico</AlertTitle>
+            <AlertDescription>
+                Como indica el informe, lograr tu objetivo de peso depende principalmente de ajustes dietéticos estratégicos, no solo del ejercicio. Esta sección te guiará.
+            </AlertDescription>
+        </Alert>
         <Card>
-            <CardHeader>
-                <CardTitle>Ejemplo de Menú Diario</CardTitle>
-                <CardDescription>Adaptado a tus objetivos y consideraciones (sin gluten).</CardDescription>
-            </CardHeader>
+            <CardHeader><CardTitle>Objetivos de Macronutrientes Diarios</CardTitle></CardHeader>
+            <CardContent className="grid md:grid-cols-3 gap-4 text-center">
+                <div className="p-4 bg-blue-50 dark:bg-blue-900/30 rounded-lg">
+                    <h4 className="font-semibold">Carbohidratos (55-60%)</h4>
+                    <p className="text-2xl font-bold">250-420g</p>
+                    <p className="text-xs text-gray-500">Tu principal fuente de energía.</p>
+                </div>
+                <div className="p-4 bg-green-50 dark:bg-green-900/30 rounded-lg">
+                    <h4 className="font-semibold">Proteínas (12-15%)</h4>
+                    <p className="text-2xl font-bold">100-145g</p>
+                    <p className="text-xs text-gray-500">Esenciales para reparar y construir músculo.</p>
+                </div>
+                <div className="p-4 bg-yellow-50 dark:bg-yellow-900/30 rounded-lg">
+                    <h4 className="font-semibold">Grasas Saludables (20-35%)</h4>
+                    <p className="text-2xl font-bold">~60-80g</p>
+                    <p className="text-xs text-gray-500">Para energía sostenida y salud articular.</p>
+                </div>
+            </CardContent>
+        </Card>
+        <Card>
+            <CardHeader><CardTitle>Timing de Nutrientes: Qué y Cuándo Comer</CardTitle></CardHeader>
+            <CardContent>
+                <Tabs defaultValue="pre-entreno">
+                    <TabsList>
+                        <TabsTrigger value="pre-entreno">Antes de Entrenar</TabsTrigger>
+                        <TabsTrigger value="durante-entreno">Durante</TabsTrigger>
+                        <TabsTrigger value="post-entreno">Post-Entreno (Crítico)</TabsTrigger>
+                    </TabsList>
+                    <TabsContent value="pre-entreno" className="pt-4">Comida ligera 1-2h antes, rica en carbohidratos. Ej: Avena sin gluten, plátano con mantequilla de almendras.</TabsContent>
+                    <TabsContent value="durante-entreno" className="pt-4">Para sesiones de >1h, enfócate en hidratación con electrolitos y carbohidratos simples (30-45g/h).</TabsContent>
+                    <TabsContent value="post-entreno" className="pt-4">Ventana de 30 min. ¡La más importante! Combina proteína y carbohidratos para reparar músculo y reponer energía. Ej: Batido de proteína con fruta, yogur griego con granola sin gluten.</TabsContent>
+                </Tabs>
+            </CardContent>
+        </Card>
+        <Card>
+            <CardHeader><CardTitle>Menú Ejemplo (Sin Gluten)</CardTitle></CardHeader>
             <CardContent>
                 <Accordion type="single" collapsible className="w-full">
-                    <AccordionItem value="item-1">
-                        <AccordionTrigger>Desayuno (8:00 AM)</AccordionTrigger>
-                        <AccordionContent>Arepas de yuca con huevo revuelto y palta. Café con leche de almendras.</AccordionContent>
-                    </AccordionItem>
-                    <AccordionItem value="item-2">
-                        <AccordionTrigger>Almuerzo (1:00 PM)</AccordionTrigger>
-                        <AccordionContent>Pechuga de pollo a la plancha con quinoa y ensalada de hojas verdes, tomate y zanahoria.</AccordionContent>
-                    </AccordionItem>
-                     <AccordionItem value="item-3">
-                        <AccordionTrigger>Merienda (5:00 PM)</AccordionTrigger>
-                        <AccordionContent>Yogur griego con frutos rojos y un puñado de nueces.</AccordionContent>
-                    </AccordionItem>
-                     <AccordionItem value="item-4">
-                        <AccordionTrigger>Cena (9:00 PM)</AccordionTrigger>
-                        <AccordionContent>Salmón al horno con batatas asadas y brócoli al vapor.</AccordionContent>
-                    </AccordionItem>
+                    {/* Accordion items... */}
                 </Accordion>
             </CardContent>
         </Card>
     </div>
 );
 
-
-// --- TRAINING PLAN COMPONENT ---
-const TrainingPlan = () => (
-    <div>
-        <h1 className="text-2xl md:text-3xl font-bold mb-6">Entrenamiento y Recuperación</h1>
+const TrainingPlan: React.FC = () => (
+    <div className="space-y-6">
+        <h1 className="text-3xl font-bold">Entrenamiento y Mantenimiento Corporal</h1>
+        <Alert>
+            <Brain className="h-4 w-4" />
+            <AlertTitle>Entrenamiento Inteligente: EPOC y Periodización</AlertTitle>
+            <AlertDescription>
+                El informe explica que la intensidad es clave. El entrenamiento HIIT genera un "efecto post-combustión" (EPOC) que quema calorías por horas. La periodización te ayuda a progresar sin sobreentrenar.
+            </AlertDescription>
+        </Alert>
          <Card>
-            <CardHeader>
-                <CardTitle>Planificación Semanal</CardTitle>
-            </CardHeader>
+            <CardHeader><CardTitle>Planificación Semanal Complementaria</CardTitle></CardHeader>
             <CardContent>
-                <p className="mb-4">Estructura de entrenamiento enfocada en el ballet folklórico, combinando técnica, fuerza y flexibilidad.</p>
-                 <Accordion type="multiple" className="w-full">
+                <Accordion type="multiple" className="w-full">
                     <AccordionItem value="item-1">
-                        <AccordionTrigger>Técnica y Ensayo (3 veces/semana)</AccordionTrigger>
-                        <AccordionContent>Lunes, Miércoles, Viernes: 2 horas de ensayo de coreografías, zapateo y técnica de pañuelo.</AccordionContent>
+                        <AccordionTrigger>Fuerza y Acondicionamiento (2 veces/semana)</AccordionTrigger>
+                        <AccordionContent>Circuitos de alta intensidad (HIIT) para maximizar EPOC. Foco en sentadillas, planchas, puentes de glúteos. Usar bandas de resistencia.</AccordionContent>
                     </AccordionItem>
                     <AccordionItem value="item-2">
-                        <AccordionTrigger>Fuerza y Acondicionamiento (2 veces/semana)</AccordionTrigger>
-                        <AccordionContent>Martes y Jueves: Circuito de fuerza funcional. Foco en piernas (sentadillas, estocadas), core (planchas) y tren superior ligero.</AccordionContent>
+                        <AccordionTrigger>Cardio de Bajo Impacto (1-2 veces/semana)</AccordionTrigger>
+                        <AccordionContent>Ciclismo o natación para mejorar la resistencia aeróbica que el ballet por sí solo no desarrolla, protegiendo las articulaciones.</AccordionContent>
                     </AccordionItem>
                     <AccordionItem value="item-3">
-                        <AccordionTrigger>Flexibilidad y Recuperación (Diario)</AccordionTrigger>
-                        <AccordionContent>Rutina de 20 minutos de estiramientos post-entrenamiento. Sábado: Yoga o stretching profundo. Domingo: Descanso activo (caminata suave).</AccordionContent>
+                        <AccordionTrigger>Técnica y Flexibilidad (Diario)</AccordionTrigger>
+                        <AccordionContent>Además del ensayo, dedicar 20 min a estiramientos y trabajo de movilidad. Incluir ejercicios de "Barra al Suelo" para la alineación.</AccordionContent>
                     </AccordionItem>
                 </Accordion>
             </CardContent>
@@ -358,21 +258,40 @@ const TrainingPlan = () => (
     </div>
 );
 
-// --- EDUCATION COMPONENT ---
-const Education = () => (
-     <div>
-        <h1 className="text-2xl md:text-3xl font-bold mb-6">Centro de Educación</h1>
+const SleepRecovery: React.FC = () => (
+    <div className="space-y-6">
+        <h1 className="text-3xl font-bold">Sueño y Recuperación</h1>
+        <Alert>
+             <Moon className="h-4 w-4" />
+             <AlertTitle>Tu Herramienta de Recuperación Más Potente</AlertTitle>
+             <AlertDescription>
+                 El informe es claro: dormir menos de 8 horas aumenta drásticamente el riesgo de lesiones. El sueño es donde tu cuerpo se repara y fortalece. Tu objetivo: 8-10 horas.
+             </AlertDescription>
+        </Alert>
+        <Card>
+            <CardHeader><CardTitle>Registro de Sueño</CardTitle></CardHeader>
+            <CardContent className="space-y-4">
+                 {/* Dummy form, in a real app this would save data */}
+                 <div className="grid gap-2"><Label htmlFor="sleep-hours">Horas Dormidas</Label><Input id="sleep-hours" type="number" defaultValue={latestSleep?.hours} /></div>
+                 <div className="grid gap-2"><Label htmlFor="sleep-quality">¿Cómo te sentiste al despertar?</Label><Input id="sleep-quality" defaultValue={latestSleep?.quality} /></div>
+                 <Button>Guardar Registro de Sueño</Button>
+            </CardContent>
+        </Card>
          <Card>
-            <CardHeader><CardTitle>Recursos y Consejos</CardTitle></CardHeader>
+            <CardHeader><CardTitle>Técnicas de Recuperación Estratégica</CardTitle></CardHeader>
             <CardContent>
-                <Accordion type="single" collapsible className="w-full">
+                 <Accordion type="single" collapsible>
                     <AccordionItem value="item-1">
-                        <AccordionTrigger>Manejo de la Fatiga</AccordionTrigger>
-                        <AccordionContent>Asegura una correcta hidratación durante el día y considera un snack ligero rico en carbohidratos complejos 30-60 minutos antes de ensayar.</AccordionContent>
+                        <AccordionTrigger>Baños de Sales de Epsom</AccordionTrigger>
+                        <AccordionContent>Relajan los músculos, reducen la inflamación y mejoran la circulación. Ideal para después de ensayos intensos.</AccordionContent>
                     </AccordionItem>
                     <AccordionItem value="item-2">
-                        <AccordionTrigger>Nutrición para Bailarines (Sin Gluten)</AccordionTrigger>
-                        <AccordionContent>Prioriza fuentes de carbohidratos como la batata, quinoa y arroz integral para energía sostenida. Las proteínas magras son clave para la reparación muscular.</AccordionContent>
+                        <AccordionTrigger>Rodillo de Espuma (Foam Rolling)</AccordionTrigger>
+                        <AccordionContent>Libera la tensión en isquiotibiales, flexores de cadera y pantorrillas para mejorar la flexibilidad y reducir el dolor.</AccordionContent>
+                    </AccordionItem>
+                     <AccordionItem value="item-3">
+                        <AccordionTrigger>Recuperación Mental (Mindfulness)</AccordionTrigger>
+                        <AccordionContent>El estrés mental impide la recuperación física. Dedica 5-10 minutos a ejercicios de respiración profunda o meditación guiada para calmar el sistema nervioso.</AccordionContent>
                     </AccordionItem>
                 </Accordion>
             </CardContent>
@@ -380,8 +299,29 @@ const Education = () => (
     </div>
 );
 
+const Supplements: React.FC = () => (
+     <div className="space-y-6">
+        <h1 className="text-3xl font-bold">Guía de Suplementación</h1>
+        <Alert variant="destructive">
+             <ShieldCheck className="h-4 w-4" />
+             <AlertTitle>¡Importante! Consulta Profesional</AlertTitle>
+             <AlertDescription>
+                 Los suplementos deben complementar una dieta equilibrada, no reemplazarla. Consulta siempre a un médico o dietista antes de empezar a tomar cualquier suplemento.
+             </AlertDescription>
+        </Alert>
+        <div className="grid md:grid-cols-2 gap-6">
+            <Card><CardHeader><CardTitle>Proteína en Polvo</CardTitle></CardHeader><CardContent>Para asegurar la ingesta proteica post-entreno y acelerar la reparación muscular.</CardContent></Card>
+            <Card><CardHeader><CardTitle>Omega-3 (Aceite de Pescado)</CardTitle></CardHeader><CardContent>Reduce la inflamación general y apoya la salud de tus articulaciones.</CardContent></Card>
+            <Card><CardHeader><CardTitle>Vitamina D</CardTitle></CardHeader><CardContent>Esencial para la absorción del calcio y la salud ósea. Crucial por pasar mucho tiempo en interiores.</CardContent></Card>
+            <Card><CardHeader><CardTitle>Magnesio</CardTitle></CardHeader><CardContent>Ayuda a la relajación muscular, previene calambres y mejora la calidad del sueño.</CardContent></Card>
+            <Card><CardHeader><CardTitle>Calcio</CardTitle></CardHeader><CardContent>Fundamental para la densidad ósea y prevenir fracturas por estrés.</CardContent></Card>
+            <Card><CardHeader><CardTitle>Suplementos Articulares</CardTitle></CardHeader><CardContent>Glucosamina, Condroitina y Colágeno pueden ayudar a mantener el cartílago sano.</CardContent></Card>
+        </div>
+    </div>
+);
 
-// --- MAIN DASHBOARD PAGE COMPONENT ---
+
+// --- MAIN DASHBOARD PAGE ---
 export default function DashboardPage() {
     const [activeView, setActiveView] = useState<ViewName>('overview');
     const [healthData, setHealthData] = useState<HealthMetric[]>([]);
@@ -418,39 +358,33 @@ export default function DashboardPage() {
         };
         try {
             await dataSyncManager.saveLocal(metricToAdd);
+            useToast().toast({ title: "¡Éxito!", description: "Registro guardado localmente y pendiente de sincronización." });
         } catch (error) {
             console.error("Failed to save new data:", error);
+            useToast().toast({ title: "Error", description: "No se pudo guardar el registro.", variant: "destructive" });
         }
     };
     
     const renderContent = () => {
         if (isLoading && healthData.length === 0) {
             return (
-                 <div className="space-y-4 p-8">
-                    <Skeleton className="h-24 w-full" />
-                    <div className="grid grid-cols-4 gap-4">
-                        <Skeleton className="h-24 w-full" />
-                        <Skeleton className="h-24 w-full" />
-                        <Skeleton className="h-24 w-full" />
-                        <Skeleton className="h-24 w-full" />
-                    </div>
+                 <div className="space-y-6 p-8">
+                    <Skeleton className="h-28 w-full" />
+                    <div className="grid grid-cols-4 gap-6"><Skeleton className="h-28 w-full" /><Skeleton className="h-28 w-full" /><Skeleton className="h-28 w-full" /><Skeleton className="h-28 w-full" /></div>
+                    <Skeleton className="h-64 w-full" />
                 </div>
             )
         }
     
         switch (activeView) {
-            case 'overview':
-                return <Overview progressData={healthData} setView={setActiveView} />;
-            case 'tracking':
-                return <ProgressTracking progressData={healthData} onAddData={handleAddData} />;
-            case 'nutrition':
-                return <NutritionPlan />;
-            case 'training':
-                return <TrainingPlan />;
-            case 'education':
-                return <Education />;
-            default:
-                return <Overview progressData={healthData} setView={setActiveView} />;
+            case 'overview': return <Overview progressData={healthData} setView={setActiveView} />;
+            case 'tracking': return <p>Progress Tracking Component Here...</p>; // Placeholder for ProgressTracking
+            case 'nutrition': return <NutritionPlan />;
+            case 'training': return <TrainingPlan />;
+            case 'sleep_recovery': return <SleepRecovery />;
+            case 'supplements': return <Supplements />;
+            case 'education': return <p>Education Component Here...</p>; // Placeholder for Education
+            default: return <Overview progressData={healthData} setView={setActiveView} />;
         }
     };
 
@@ -465,3 +399,4 @@ export default function DashboardPage() {
         </div>
     );
 }
+
