@@ -1,12 +1,18 @@
+# netlify.toml (versión optimizada para el Next.js Runtime de Netlify)
+
 [build]
-  publish = "out"
-  # MODIFICACIÓN: Usar npm ci antes de npx next build para una instalación robusta de dependencias
-  command = "npm ci && npx next build" 
+  # El comando de build es correcto. Netlify lo ejecutará.
+  command = "npx next build"
+
+  # ¡CAMBIO CLAVE! 
+  # Apuntamos al directorio de salida estándar de Next.js (.next) en lugar de "out".
+  # Esto permite a Netlify usar su runtime especializado para Next.js.
+  publish = ".next"
 
 [build.environment]
   NODE_VERSION = "18"
-  NPM_VERSION = "8"
 
+# Los encabezados de seguridad que tenías están perfectos. Los mantenemos.
 [[headers]]
   for = "/*"
   [headers.values]
@@ -27,7 +33,5 @@
 [functions]
   directory = "netlify/functions"
 
-[[redirects]]
-  from = "/*"
-  to = "/index.html"
-  status = 200
+# La redirección para SPAs ha sido eliminada, ya que no es necesaria
+# con el Next.js Runtime de Netlify.
